@@ -29,6 +29,9 @@ export function useEclipsePredictions() {
         ...p,
         isInCatalog: !!catalogMatch,
         note: catalogMatch ? `${p.note} • Matches catalog: ${catalogMatch.note}` : p.note,
+        magnitude: p.magnitude,
+        gamma: p.gamma,
+        durationMinutes: p.durationMinutes,
       };
     });
   }, [rawPredictions]);

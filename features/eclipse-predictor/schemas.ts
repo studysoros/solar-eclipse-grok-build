@@ -7,6 +7,9 @@ export const PredictedEclipseUISchema = z.object({
   type: z.enum(['Total', 'Annular', 'Partial', 'None']),
   note: z.string(),
   isInCatalog: z.boolean().optional(),
+  magnitude: z.number().optional(),
+  gamma: z.number().optional(),
+  durationMinutes: z.number().optional(),
 });
 
 export type PredictedEclipseUI = z.infer<typeof PredictedEclipseUISchema>;

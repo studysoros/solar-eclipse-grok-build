@@ -50,6 +50,9 @@ export function EclipsePredictionTable() {
               <th className="p-2">Date</th>
               <th className="p-2">Type</th>
               <th className="p-2">Sep (°)</th>
+              <th className="p-2">Magnitude</th>
+              <th className="p-2">Gamma</th>
+              <th className="p-2">Duration (min)</th>
               <th className="p-2">In Catalog</th>
               <th className="p-2 w-24">Action</th>
             </tr>
@@ -57,7 +60,7 @@ export function EclipsePredictionTable() {
           <tbody>
             {predictions.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-4 text-center text-muted-foreground">
+                <td colSpan={8} className="p-4 text-center text-muted-foreground">
                   No events found in window. Try a longer search or different start time.
                 </td>
               </tr>
@@ -74,6 +77,9 @@ export function EclipsePredictionTable() {
                   </span>
                 </td>
                 <td className="p-2 font-mono">{p.separationDeg}</td>
+                <td className="p-2 font-mono">{p.magnitude?.toFixed(3) ?? '—'}</td>
+                <td className="p-2 font-mono">{p.gamma?.toFixed(3) ?? '—'}</td>
+                <td className="p-2 font-mono">{p.durationMinutes?.toFixed(1) ?? '—'}</td>
                 <td className="p-2">
                   {p.isInCatalog ? (
                     <span className="text-emerald-500">✓ Yes</span>
@@ -96,8 +102,8 @@ export function EclipsePredictionTable() {
       </div>
 
       <div className="text-[10px] text-muted-foreground">
-        Predictions use reference ephemeris (accurate). Compare to live N-body sim by jumping and watching alignments.
-        "In Catalog" means it matches one of the known real eclipses we hard-coded for validation.
+        Predictions use reference ephemeris (accurate). Additional columns: Magnitude (obscuration fraction), Gamma (shadow axis distance in Earth radii), Duration of central phase.
+        Compare to live N-body sim by jumping and watching alignments. Matches in the catalog are marked.
       </div>
     </div>
   );
