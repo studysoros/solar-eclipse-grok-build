@@ -5,7 +5,6 @@ import { OrbitControls } from '@react-three/drei';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useSimulation } from '@/lib/sim/useSimulation';
-import type { Vec3 } from '@/lib/physics/vec3';
 
 interface BodyMeshProps {
   id: string;
@@ -36,6 +35,47 @@ function BodyMesh({ id, color, radius, emissive }: BodyMeshProps) {
         shininess={30}
       />
     </mesh>
+  );
+}
+
+// Simple trail using a line of previous positions (updated from snapshots)
+function BodyTrail({ id, color }: { id: string; color: string }) {
+  const { bodies } = useSimulation();
+  const pointsRef = useRef<THREE.Points>(null!);
+  const positionsRef = useRef<Float32Array>(new Float32Array(300)); // 100 points * 3
+  const countRef = useRef(0);
+
+  const body = useMemo(() => bodies.find((b) => b.id === id), [bodies, id]);
+
+  useFrame(() => {
+    if (!body || !pointsRef.current) return;
+
+    const posArray = positionsRef.current;
+    const idx = (countRef.current % 100) * 3;
+
+    posArray[idx + 0] = body.pos.x;
+    posArray[idx + 1] = body.pos.y;
+    posArray[idx + 2] = body.pos.z;
+
+    countRef.current += 1;
+
+    const geom = pointsRef.current.geometry as THREE.BufferGeometry;
+    geom.attributes.position.needsUpdate = true;
+    (geom.attributes.position as THREE.BufferAttribute).count = Math.min(countRef.current, 100);
+  });
+
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={100}
+          array={positionsRef.current}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <pointsMaterial size={0.03} color={color} sizeAttenuation={true} />
+    </points>
   );
 }
 
@@ -87,13 +127,15 @@ function Scene() {
       <SunLight />
 
       {Object.entries(bodyVisuals).map(([id, visual]) => (
-        <BodyMesh
-          key={id}
-          id={id}
-          color={visual.color}
-          radius={visual.radius}
-          emissive={visual.emissive}
-        />
+        <group key={id}>
+          <BodyMesh
+            id={id}
+            color={visual.color}
+            radius={visual.radius}
+            emissive={visual.emissive}
+          />
+          <BodyTrail id={id} color={visual.color} />
+        </group>
       ))}
 
       <OrbitControls
