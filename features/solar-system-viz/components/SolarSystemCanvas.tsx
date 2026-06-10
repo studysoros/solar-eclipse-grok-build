@@ -2,7 +2,7 @@
 
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useSimulation } from '@/lib/sim/useSimulation';
 import { validatedCatalog } from '@/lib/astro/eclipse-catalog';
@@ -181,15 +181,42 @@ function Sun() {
   );
 }
 
-function Scene() {
+function Scene({ focusedBody, isEarthMoonCloseup }: { focusedBody: string | null; isEarthMoonCloseup: boolean }) {
   const { bodies } = useSimulation();
   const { camera } = useThree();
+  const controlsRef = useRef<any>(null);
 
   // Initial camera position (looking at inner solar system)
   useEffect(() => {
     camera.position.set(0, 8, 18);
     camera.lookAt(0, 0, 0);
   }, [camera]);
+
+  // Better scale/camera handling (MVP): follow the focused body by continuously updating
+  // the OrbitControls target. This lets the user orbit/zoom *around* the body (great for
+  // Earth-Moon relative view without losing context of the sim).
+  // For Earth-Moon closeup we also pull the camera in closer automatically.
+  useFrame(() => {
+    if (focusedBody && controlsRef.current) {
+      const body = bodies.find((b: any) => b.id === focusedBody);
+      if (body) {
+        const target = controlsRef.current.target;
+        target.set(body.pos.x, body.pos.y, body.pos.z);
+
+        if (isEarthMoonCloseup && focusedBody === 'earth') {
+          // Nudge camera to a close relative distance so Moon orbit is clearly visible
+          const currentDist = camera.position.distanceTo(target);
+          const desired = 0.035; // tuned for exaggerated Moon size in viz units
+          if (currentDist > desired * 1.8) {
+            const dir = camera.position.clone().sub(target).normalize();
+            camera.position.copy(target).add(dir.multiplyScalar(desired));
+          }
+        }
+
+        controlsRef.current.update();
+      }
+    }
+  });
 
   // Visual properties. Sizes still exaggerated for visibility at solar system scale.
   // Colors chosen to be more realistic.
@@ -246,6 +273,7 @@ function Scene() {
       })}
 
       <OrbitControls
+        ref={controlsRef}
         enablePan={true}
         enableZoom={true}
         minDistance={2}
@@ -261,6 +289,10 @@ function Scene() {
 export function SolarSystemCanvas() {
   const { jd, isPlaying, speed, togglePlay, setSpeed, reset, setJd } = useSimulation();
 
+  // Camera / scale handling state for better MVP UX
+  const [focusedBody, setFocusedBody] = useState<string | null>(null);
+  const [isEarthMoonCloseup, setIsEarthMoonCloseup] = useState(false);
+
   // Simple JD to approximate Gregorian date for display
   const displayDate = useMemo(() => {
     const date = new Date((jd - 2440587.5) * 86400000);
@@ -273,7 +305,7 @@ export function SolarSystemCanvas() {
         camera={{ position: [0, 8, 18], fov: 55 }}
         style={{ background: '#000814' }}
       >
-        <Scene />
+        <Scene focusedBody={focusedBody} isEarthMoonCloseup={isEarthMoonCloseup} />
       </Canvas>
 
       {/* HUD / Controls overlay */}
@@ -339,10 +371,46 @@ export function SolarSystemCanvas() {
             ))}
           </div>
         </div>
+
+        {/* Better scale / camera handling - MVP feature */}
+        <div className="flex items-center gap-1 text-[10px] opacity-70 mt-1">
+          <span className="mr-1">Camera:</span>
+          <button
+            onClick={() => { setFocusedBody(null); setIsEarthMoonCloseup(false); }}
+            className={`px-2 py-0.5 rounded border ${!focusedBody ? 'bg-white/20' : 'bg-white/5 hover:bg-white/10'}`}
+          >
+            Free
+          </button>
+          <button
+            onClick={() => { setFocusedBody('sun'); setIsEarthMoonCloseup(false); }}
+            className={`px-2 py-0.5 rounded border ${focusedBody === 'sun' ? 'bg-white/20' : 'bg-white/5 hover:bg-white/10'}`}
+          >
+            Follow Sun
+          </button>
+          <button
+            onClick={() => { setFocusedBody('earth'); setIsEarthMoonCloseup(false); }}
+            className={`px-2 py-0.5 rounded border ${focusedBody === 'earth' && !isEarthMoonCloseup ? 'bg-white/20' : 'bg-white/5 hover:bg-white/10'}`}
+          >
+            Follow Earth
+          </button>
+          <button
+            onClick={() => { setFocusedBody('earth'); setIsEarthMoonCloseup(true); }}
+            className={`px-2 py-0.5 rounded border ${isEarthMoonCloseup ? 'bg-white/20' : 'bg-white/5 hover:bg-white/10'}`}
+          >
+            Earth-Moon Zoom
+          </button>
+          <button
+            onClick={() => { setFocusedBody('moon'); setIsEarthMoonCloseup(false); }}
+            className={`px-2 py-0.5 rounded border ${focusedBody === 'moon' ? 'bg-white/20' : 'bg-white/5 hover:bg-white/10'}`}
+          >
+            Follow Moon
+          </button>
+          <span className="ml-2 text-[9px]">(target follows body; scroll to zoom around it)</span>
+        </div>
       </div>
 
       <div className="absolute bottom-3 right-4 text-[10px] text-white/50 font-mono">
-        Drag to orbit • Scroll to zoom • Realistic materials + starfield + Sun lighting • Sizes exaggerated for visibility
+        Drag to orbit • Scroll to zoom around focus • Use Camera buttons for follow modes &amp; Earth-Moon relative view • Sizes exaggerated
       </div>
     </div>
   );
