@@ -2,6 +2,7 @@
 
 import { SolarSystemCanvas } from '@/features/solar-system-viz/components/SolarSystemCanvas';
 import { EclipsePredictionTable } from '@/features/eclipse-predictor/components/EclipsePredictionTable';
+import { ValidationPanel } from '@/features/eclipse-predictor/components/ValidationPanel';
 
 export default function SolarEclipseSimulator() {
   return (
@@ -60,6 +61,7 @@ export default function SolarEclipseSimulator() {
         </div>
 
         <EclipsePredictionTable />
+        <ValidationPanel />
       </main>
 
       <footer className="border-t py-4 text-center text-xs text-muted-foreground">
