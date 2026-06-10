@@ -8,8 +8,8 @@
  * All functions operate on plain objects for easy worker transfer.
  */
 
-import { add, scale, sub, lengthSq, type Vec3 } from "./vec3";
-import { G } from "./constants";
+import { add, scale, sub, lengthSq, type Vec3, angularSeparationDegrees } from "./vec3";
+import { G, INITIAL_BODIES } from "./constants";
 import type { Body, SimulationState, Integrator, PropagateOptions } from "./types";
 
 /**
@@ -113,4 +113,60 @@ export function createInitialState(bodies: Body[] = []): SimulationState {
     jd: 2451545.0, // J2000.0 approx
     bodies,
   };
+}
+
+/**
+ * Pure function: compute the full sim state at an arbitrary target JD by propagating
+ * from the fixed initial conditions using the same leapfrog integrator.
+ * Used for validation (sim vs reference) without disturbing the live interactive sim state.
+ */
+export function getSimStateAt(targetJd: number): SimulationState {
+  const initialBodies: Body[] = INITIAL_BODIES.map((b) => ({
+    id: b.id,
+    mass: b.mass,
+    pos: { ...b.pos },
+    vel: { ...b.vel },
+  }));
+
+  let state: SimulationState = {
+    jd: 2451545.0,
+    bodies: initialBodies,
+  };
+
+  let currentJd = state.jd;
+  const delta = targetJd - currentJd;
+
+  if (delta <= 0) {
+    return state;
+  }
+
+  // Use reasonably small steps for validation accuracy (0.25 day is a good balance)
+  const step = 0.25;
+  const numSteps = Math.ceil(delta / step);
+  const dt = delta / numSteps;
+
+  for (let i = 0; i < numSteps; i++) {
+    state = leapfrogStep(state, dt);
+  }
+
+  // Snap the final time exactly
+  state.jd = targetJd;
+  return state;
+}
+
+/**
+ * Convenience: compute geocentric sun-moon angular separation (degrees) according to the sim
+ * at the given JD. This allows "sim vs reference" comparison for eclipse validation.
+ */
+export function getSimSunMoonSeparationAt(targetJd: number): number {
+  const state = getSimStateAt(targetJd);
+
+  const sun = state.bodies.find((b) => b.id === "sun")!;
+  const earth = state.bodies.find((b) => b.id === "earth")!;
+  const moon = state.bodies.find((b) => b.id === "moon")!;
+
+  const sunGeo = sub(sun.pos, earth.pos);
+  const moonGeo = sub(moon.pos, earth.pos);
+
+  return angularSeparationDegrees(sunGeo, moonGeo);
 }

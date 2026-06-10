@@ -72,3 +72,13 @@ export function addInPlace(target: Vec3, delta: Vec3): void {
 export function clone(v: Vec3): Vec3 {
   return { x: v.x, y: v.y, z: v.z };
 }
+
+/** Angular separation in degrees between two direction vectors (for eclipse validation etc). */
+export function angularSeparationDegrees(a: Vec3, b: Vec3): number {
+  const lenA = Math.hypot(a.x, a.y, a.z);
+  const lenB = Math.hypot(b.x, b.y, b.z);
+  if (lenA === 0 || lenB === 0) return 0;
+  const dot = (a.x * b.x + a.y * b.y + a.z * b.z) / (lenA * lenB);
+  const clamped = Math.max(-1, Math.min(1, dot));
+  return (Math.acos(clamped) * 180) / Math.PI;
+}

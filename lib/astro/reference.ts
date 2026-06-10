@@ -13,7 +13,7 @@
  */
 
 import * as Astronomy from "astronomy-engine";
-import { vec3, type Vec3 } from "@/lib/physics/vec3";
+import { vec3, type Vec3, angularSeparationDegrees } from "@/lib/physics/vec3";
 
 /** Supported bodies for reference lookups (extend as needed). */
 export type ReferenceBody =
@@ -87,14 +87,5 @@ export function getSunMoonGeo(jd: number): { sun: Vec3; moon: Vec3 } {
   };
 }
 
-/**
- * Very rough angular separation in degrees between two directions (for validation).
- * Not high-precision astrometry, but good enough to detect near-alignments.
- */
-export function angularSeparationDegrees(a: Vec3, b: Vec3): number {
-  // Treat as directions (normalize)
-  const dot = (a.x * b.x + a.y * b.y + a.z * b.z) /
-    (Math.hypot(a.x, a.y, a.z) * Math.hypot(b.x, b.y, b.z));
-  const clamped = Math.max(-1, Math.min(1, dot));
-  return (Math.acos(clamped) * 180) / Math.PI;
-}
+// Re-export the shared implementation for convenience in astro code
+export { angularSeparationDegrees } from "@/lib/physics/vec3";
