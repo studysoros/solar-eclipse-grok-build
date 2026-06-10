@@ -39,41 +39,36 @@ function BodyMesh({ id, color, radius, emissive }: BodyMeshProps) {
   );
 }
 
-// Simple trail using a line of previous positions (updated from snapshots)
+// Simple trail using points of previous positions (updated from snapshots)
 function BodyTrail({ id, color }: { id: string; color: string }) {
   const { bodies } = useSimulation();
   const pointsRef = useRef<THREE.Points>(null!);
-  const positionsRef = useRef<Float32Array>(new Float32Array(300)); // 100 points * 3
-  const countRef = useRef(0);
+  // Fixed buffer created once (avoids ref access during render)
+  const positionsArray = useMemo(() => new Float32Array(300), []);
+  const headRef = useRef(0);
 
   const body = useMemo(() => bodies.find((b) => b.id === id), [bodies, id]);
 
   useFrame(() => {
     if (!body || !pointsRef.current) return;
 
-    const posArray = positionsRef.current;
-    const idx = (countRef.current % 100) * 3;
-
-    posArray[idx + 0] = body.pos.x;
-    posArray[idx + 1] = body.pos.y;
-    posArray[idx + 2] = body.pos.z;
-
-    countRef.current += 1;
+    // Mutate the typed array for three.js buffer performance (standard pattern)
+    // eslint-disable-next-line react-hooks/immutability
+    const idx = (headRef.current % 100) * 3;
+    positionsArray[idx + 0] = body.pos.x;
+    positionsArray[idx + 1] = body.pos.y;
+    positionsArray[idx + 2] = body.pos.z;
+    headRef.current += 1;
 
     const geom = pointsRef.current.geometry as THREE.BufferGeometry;
-    geom.attributes.position.needsUpdate = true;
-    (geom.attributes.position as THREE.BufferAttribute).count = Math.min(countRef.current, 100);
+    const attr = geom.attributes.position as THREE.BufferAttribute;
+    attr.needsUpdate = true;
   });
 
   return (
     <points ref={pointsRef}>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={100}
-          array={positionsRef.current}
-          itemSize={3}
-        />
+        <bufferAttribute attach="attributes-position" args={[positionsArray, 3]} />
       </bufferGeometry>
       <pointsMaterial size={0.03} color={color} sizeAttenuation={true} />
     </points>
@@ -153,7 +148,7 @@ function Scene() {
 }
 
 export function SolarSystemCanvas() {
-  const { jd, isPlaying, speed, togglePlay, setSpeed, reset } = useSimulation();
+  const { jd, isPlaying, speed, togglePlay, setSpeed, reset, setJd } = useSimulation();
 
   // Simple JD to approximate Gregorian date for display
   const displayDate = useMemo(() => {
