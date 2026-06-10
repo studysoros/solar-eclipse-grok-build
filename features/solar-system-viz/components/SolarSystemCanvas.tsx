@@ -5,6 +5,7 @@ import { OrbitControls } from '@react-three/drei';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useSimulation } from '@/lib/sim/useSimulation';
+import { validatedCatalog } from '@/lib/astro/eclipse-catalog';
 
 interface BodyMeshProps {
   id: string;
@@ -212,6 +213,25 @@ export function SolarSystemCanvas() {
               {s}x
             </button>
           ))}
+
+          {/* Quick jumps using the real eclipse catalog we already have */}
+          <div className="ml-2 flex gap-1 text-[10px] opacity-70">
+            {validatedCatalog.slice(0, 4).map((e) => (
+              <button
+                key={e.date}
+                onClick={() => {
+                  // Convert YYYY-MM-DD to approximate JD (good enough for demo jumps)
+                  const d = new Date(e.date);
+                  const jdApprox = 2440587.5 + d.getTime() / 86400000;
+                  setJd(jdApprox);
+                }}
+                className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 border border-white/10"
+                title={e.note}
+              >
+                {e.date}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
