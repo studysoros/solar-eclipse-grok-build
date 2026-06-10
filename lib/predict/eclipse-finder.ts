@@ -15,6 +15,7 @@
  */
 
 import { getSunMoonGeo, angularSeparationDegrees } from '@/lib/astro/reference';
+import { computeEclipseCircumstances, type EclipseCircumstances } from './circumstances';
 import { z } from 'zod';
 
 export const PredictedEclipseSchema = z.object({
@@ -23,25 +24,16 @@ export const PredictedEclipseSchema = z.object({
   separationDeg: z.number(),
   type: z.enum(['Total', 'Annular', 'Partial', 'None']),
   note: z.string(),
+  magnitude: z.number().optional(),
+  gamma: z.number().optional(),
+  durationMinutes: z.number().optional(),
 });
 
-export type PredictedEclipse = z.infer<typeof PredictedEclipseSchema>;
-
-/**
- * Approximate apparent angular diameter in degrees.
- * sunRadiusKm ~ 696000, moon ~ 1737
- */
-function approxAngularDiameterKm(distAu: number, bodyRadiusKm: number): number {
-  // 1 AU in km
-  const AU_KM = 149597870.7;
-  const distKm = distAu * AU_KM;
-  const rad = Math.atan(bodyRadiusKm / distKm) * (180 / Math.PI) * 2;
-  return rad;
-}
+export type PredictedEclipse = z.infer<typeof PredictedEclipseSchema> & Partial<EclipseCircumstances>;
 
 /**
  * Search for solar eclipses in [startJd, startJd + daySpan].
- * Returns clustered events with min separation.
+ * Returns events enriched with circumstances (magnitude, gamma, duration).
  */
 export function findSolarEclipses(
   startJd: number,
@@ -63,15 +55,18 @@ export function findSolarEclipses(
     } else if (currentCluster.length > 0) {
       // End of cluster - pick the closest approach
       const best = currentCluster.reduce((a, b) => (a.sep < b.sep ? a : b));
-      const type = classifyEclipseType(best.jd);
+      const circ = computeEclipseCircumstances(best.jd);
       events.push({
         jd: best.jd,
         date: new Date((best.jd - 2440587.5) * 86400000).toISOString().slice(0, 10),
-        separationDeg: +best.sep.toFixed(3),
-        type,
-        note: type === 'Total' || type === 'Annular'
-          ? 'Likely central eclipse (sim approx)'
-          : 'Possible partial',
+        separationDeg: circ.separationDeg,
+        type: circ.type,
+        note: circ.type === 'Total' || circ.type === 'Annular'
+          ? 'Central eclipse (reference model)'
+          : 'Partial eclipse (reference model)',
+        magnitude: circ.magnitude,
+        gamma: circ.gamma,
+        durationMinutes: circ.durationMinutes,
       });
       currentCluster = [];
     }
@@ -80,35 +75,18 @@ export function findSolarEclipses(
   // flush last cluster
   if (currentCluster.length > 0) {
     const best = currentCluster.reduce((a, b) => (a.sep < b.sep ? a : b));
-    const type = classifyEclipseType(best.jd);
+    const circ = computeEclipseCircumstances(best.jd);
     events.push({
       jd: best.jd,
       date: new Date((best.jd - 2440587.5) * 86400000).toISOString().slice(0, 10),
-      separationDeg: +best.sep.toFixed(3),
-      type,
+      separationDeg: circ.separationDeg,
+      type: circ.type,
       note: 'Edge of search window',
+      magnitude: circ.magnitude,
+      gamma: circ.gamma,
+      durationMinutes: circ.durationMinutes,
     });
   }
 
   return events;
-}
-
-function classifyEclipseType(jd: number): 'Total' | 'Annular' | 'Partial' {
-  const { sun, moon } = getSunMoonGeo(jd);
-
-  // Distance from earth
-  const sunDist = Math.hypot(sun.x, sun.y, sun.z);
-  const moonDist = Math.hypot(moon.x, moon.y, moon.z);
-
-  const sunAng = approxAngularDiameterKm(sunDist, 696000);
-  const moonAng = approxAngularDiameterKm(moonDist, 1737);
-
-  if (moonAng > sunAng * 0.98) {
-    // Moon appears at least almost as large as sun
-    return 'Total';
-  }
-  if (moonAng < sunAng * 0.95) {
-    return 'Annular';
-  }
-  return 'Partial';
 }
