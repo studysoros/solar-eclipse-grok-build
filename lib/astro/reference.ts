@@ -42,17 +42,12 @@ const BODY_MAP: Record<ReferenceBody, Astronomy.Body> = {
 };
 
 /**
- * Convert a Julian Date to an Astronomy Time object.
+ * Convert Julian Date (approx) to a JS Date for astronomy-engine.
+ * astronomy-engine's MakeTime / Vector functions accept Date or AstroTime.
  */
-function jdToAstroTime(jd: number): Astronomy.Time {
-  // astronomy-engine Time can be constructed from a JS Date or from a 'tt' value.
-  // A simple reliable way: create a Date near the JD and let it handle the conversion,
-  // or use the 'from' helpers. For precision we use the known J2000 anchor.
-  // astronomy-engine exposes Time.Make or we can use a UTC date approximation.
-  // For our purposes, using the built-in conversion via a date is acceptable.
-  // JD 2451545.0 = 2000-01-01 12:00 TT
-  const date = new Date((jd - 2440587.5) * 86400000); // rough JD to ms since 1970
-  return Astronomy.MakeTime(date);
+function jdToDate(jd: number): Date {
+  // JD 2440587.5 ≈ 1970-01-01 00:00 UTC
+  return new Date((jd - 2440587.5) * 86400000);
 }
 
 /**
@@ -62,9 +57,9 @@ function jdToAstroTime(jd: number): Astronomy.Time {
 export function getHelioPosition(jd: number, body: ReferenceBody): Vec3 {
   if (body === "sun") return vec3(0, 0, 0);
 
-  const time = jdToAstroTime(jd);
+  const date = jdToDate(jd);
   const astroBody = BODY_MAP[body];
-  const vec = Astronomy.HelioVector(astroBody, time);
+  const vec = Astronomy.HelioVector(astroBody, date);
 
   // astronomy-engine returns AU for these vectors
   return vec3(vec.x, vec.y, vec.z);
@@ -75,9 +70,9 @@ export function getHelioPosition(jd: number, body: ReferenceBody): Vec3 {
  * Particularly useful for eclipse geometry (Sun-Earth-Moon alignment).
  */
 export function getGeoPosition(jd: number, body: ReferenceBody): Vec3 {
-  const time = jdToAstroTime(jd);
+  const date = jdToDate(jd);
   const astroBody = BODY_MAP[body];
-  const vec = Astronomy.GeoVector(astroBody, time, false); // false = no aberration for simplicity
+  const vec = Astronomy.GeoVector(astroBody, date, false); // false = no aberration for simplicity
 
   return vec3(vec.x, vec.y, vec.z);
 }
