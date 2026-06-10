@@ -6,6 +6,8 @@
 
 import type { Vec3 } from "./vec3";
 
+export type { Vec3 };
+
 export interface Body {
   id: string;
   mass: number;

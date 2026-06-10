@@ -1,6 +1,10 @@
+'use client';
+
+import { SolarSystemCanvas } from '@/features/solar-system-viz/components/SolarSystemCanvas';
+
 export default function SolarEclipseSimulator() {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-background">
       <header className="border-b">
         <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -10,31 +14,53 @@ export default function SolarEclipseSimulator() {
               <div className="text-[10px] text-muted-foreground -mt-1">N-body + Eclipse Predictor</div>
             </div>
           </div>
-          <div className="text-xs text-muted-foreground">Senior-level • Scalable • Verifiable</div>
+          <div className="text-xs text-muted-foreground">
+            Senior-level • Worker-driven physics • Reference validated
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight">Interactive Solar System</h1>
+      <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-8 space-y-8">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Interactive N-Body Solar System</h1>
           <p className="mt-2 text-muted-foreground max-w-2xl">
-            N-body gravitational simulation with solar eclipse prediction. 
-            Physics-first, worker-driven, validated against reference ephemerides.
+            Pure leapfrog integration running in a Web Worker. Real-time 3D visualization with exaggerated scales for visibility.
+            Time is in Julian Date (J2000 ≈ 2451545.0).
           </p>
         </div>
 
-        <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
-          <p className="mb-2 font-medium">Project scaffold complete.</p>
-          <p className="text-sm">
-            Next: pure physics core (lib/physics), Web Worker, three.js viz, eclipse predictor, validation.
-            <br />
-            Follow <code>AGENTS.md</code> + <code>docs/coding-style.md</code> + <code>docs/commit-style.md</code>.
-          </p>
+        <SolarSystemCanvas />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div className="rounded-lg border bg-card p-4">
+            <div className="font-medium mb-1">Current State</div>
+            <div className="text-muted-foreground text-xs">
+              Live values (JD, playing state, speed) are shown in the canvas HUD above.<br />
+              The simulation runs entirely in a Web Worker using the leapfrog integrator.
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card p-4">
+            <div className="font-medium mb-1">Physics</div>
+            <div className="text-muted-foreground text-xs">
+              Symplectic leapfrog (velocity Verlet) integrator.<br />
+              10 bodies (Sun + 8 planets + Moon).<br />
+              Runs off-main-thread for smooth 60 fps rendering.
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card p-4">
+            <div className="font-medium mb-1">Next</div>
+            <div className="text-muted-foreground text-xs">
+              Eclipse prediction engine using the reference layer + sim cross-checks.<br />
+              Better trails, body labels, camera follow modes, and validation against astronomy-engine.
+            </div>
+          </div>
         </div>
       </main>
 
       <footer className="border-t py-4 text-center text-xs text-muted-foreground">
-        npm + Next.js 16 + TypeScript • Feature-sliced • Pure physics modules • astronomy-engine for reference
+        npm + Next.js 16 + TypeScript • Feature-sliced • Pure physics in lib/physics • astronomy-engine for reference only
       </footer>
     </div>
   );
