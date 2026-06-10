@@ -30,10 +30,13 @@ function BodyMesh({ id, color, radius, emissive }: BodyMeshProps) {
   return (
     <mesh ref={meshRef}>
       <sphereGeometry args={[radius]} />
-      <meshPhongMaterial
+      {/* MeshStandardMaterial gives more realistic response to the Sun's point light */}
+      <meshStandardMaterial
         color={color}
         emissive={emissive || '#000000'}
-        shininess={30}
+        emissiveIntensity={emissive ? 0.25 : 0}
+        metalness={0.05}
+        roughness={0.85}
       />
     </mesh>
   );
@@ -75,6 +78,60 @@ function BodyTrail({ id, color }: { id: string; color: string }) {
   );
 }
 
+// Realistic starfield: thousands of distant points. Stars are visual only (do not contribute light at this scale).
+function Starfield() {
+  const count = 12000;
+  const positions = useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count * 3; i += 3) {
+      // Random points on a large sphere (far background)
+      const r = 180 + Math.random() * 120;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      pos[i] = r * Math.sin(phi) * Math.cos(theta);
+      pos[i + 1] = r * Math.sin(phi) * Math.sin(theta);
+      pos[i + 2] = r * Math.cos(phi);
+    }
+    return pos;
+  }, []);
+
+  return (
+    <points>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial size={0.6} color="#bbccff" sizeAttenuation={false} />
+    </points>
+  );
+}
+
+// Simple but effective rings for Saturn (tilted like reality)
+function SaturnRings() {
+  const { bodies } = useSimulation();
+  const ringRef = useRef<THREE.Mesh>(null!);
+
+  const body = useMemo(() => bodies.find((b) => b.id === 'saturn'), [bodies]);
+
+  useFrame(() => {
+    if (ringRef.current && body) {
+      const p = body.pos;
+      ringRef.current.position.set(p.x, p.y, p.z);
+    }
+  });
+
+  return (
+    <mesh ref={ringRef} rotation={[1.25, 0.2, 0]}>
+      <ringGeometry args={[0.72, 1.35, 80]} />
+      <meshBasicMaterial
+        color="#e8d9b8"
+        side={THREE.DoubleSide}
+        transparent
+        opacity={0.65}
+      />
+    </mesh>
+  );
+}
+
 function SunLight() {
   const { bodies } = useSimulation();
   const lightRef = useRef<THREE.PointLight>(null!);
@@ -87,7 +144,41 @@ function SunLight() {
     }
   });
 
-  return <pointLight ref={lightRef} intensity={1.2} />;
+  // Much stronger light from the Sun for realistic planet illumination
+  return <pointLight ref={lightRef} intensity={4.5} color="#fff8e7" />;
+}
+
+// Enhanced Sun with core + soft glow for more realistic star appearance.
+// The glow helps sell the "star" look without post-processing.
+function Sun() {
+  const { bodies } = useSimulation();
+  const coreRef = useRef<THREE.Mesh>(null!);
+  const glowRef = useRef<THREE.Mesh>(null!);
+
+  const body = useMemo(() => bodies.find((b) => b.id === 'sun'), [bodies]);
+
+  useFrame(() => {
+    if (body) {
+      const p = body.pos;
+      if (coreRef.current) coreRef.current.position.set(p.x, p.y, p.z);
+      if (glowRef.current) glowRef.current.position.set(p.x, p.y, p.z);
+    }
+  });
+
+  return (
+    <group>
+      {/* Bright core */}
+      <mesh ref={coreRef}>
+        <sphereGeometry args={[0.75]} />
+        <meshBasicMaterial color="#ffffdd" />
+      </mesh>
+      {/* Soft outer glow (corona-like) */}
+      <mesh ref={glowRef}>
+        <sphereGeometry args={[2.2]} />
+        <meshBasicMaterial color="#ffcc66" transparent opacity={0.12} depthWrite={false} />
+      </mesh>
+    </group>
+  );
 }
 
 function Scene() {
@@ -100,39 +191,59 @@ function Scene() {
     camera.lookAt(0, 0, 0);
   }, [camera]);
 
-  // Very rough visual scaling (AU are huge, so we exaggerate planet sizes for visibility)
+  // Visual properties. Sizes still exaggerated for visibility at solar system scale.
+  // Colors chosen to be more realistic.
   const bodyVisuals = useMemo<Record<string, { color: string; radius: number; emissive?: string }>>(
     () => ({
-      sun: { color: '#ffdd44', radius: 0.6, emissive: '#ffaa00' },
-      mercury: { color: '#aaaaaa', radius: 0.18 },
-      venus: { color: '#e8c070', radius: 0.28 },
-      earth: { color: '#4488ff', radius: 0.3 },
-      mars: { color: '#cc6644', radius: 0.22 },
-      jupiter: { color: '#d2b48c', radius: 0.55 },
-      saturn: { color: '#e8d4a8', radius: 0.48 },
-      uranus: { color: '#a0d8ff', radius: 0.4 },
-      neptune: { color: '#5070ff', radius: 0.38 },
-      moon: { color: '#cccccc', radius: 0.12 },
+      sun: { color: '#ffdd66', radius: 0.7, emissive: '#ffcc44' },
+      mercury: { color: '#8c8c8c', radius: 0.16 },
+      venus: { color: '#d4b48c', radius: 0.26 },
+      earth: { color: '#3a6ea5', radius: 0.28 },
+      mars: { color: '#b35c3a', radius: 0.2 },
+      jupiter: { color: '#c5a16e', radius: 0.52 },
+      saturn: { color: '#d8c8a0', radius: 0.45 },
+      uranus: { color: '#9ad0e6', radius: 0.38 },
+      neptune: { color: '#5b6fc7', radius: 0.36 },
+      moon: { color: '#999999', radius: 0.11 },
     }),
     []
   );
 
   return (
     <>
-      <ambientLight intensity={0.15} />
+      {/* Very low ambient for realistic dark space. Sun provides the main light. */}
+      <ambientLight intensity={0.04} />
       <SunLight />
 
-      {Object.entries(bodyVisuals).map(([id, visual]) => (
-        <group key={id}>
-          <BodyMesh
-            id={id}
-            color={visual.color}
-            radius={visual.radius}
-            emissive={visual.emissive}
-          />
-          <BodyTrail id={id} color={visual.color} />
-        </group>
-      ))}
+      {/* Distant realistic starfield (visual only) */}
+      <Starfield />
+
+      {Object.entries(bodyVisuals).map(([id, visual]) => {
+        if (id === 'sun') {
+          // Sun gets special treatment for realistic star look + lighting
+          return (
+            <group key={id}>
+              <Sun />
+              <BodyTrail id={id} color="#ffdd66" />
+            </group>
+          );
+        }
+
+        const groupContent = (
+          <>
+            <BodyMesh
+              id={id}
+              color={visual.color}
+              radius={visual.radius}
+              emissive={visual.emissive}
+            />
+            <BodyTrail id={id} color={visual.color} />
+            {id === 'saturn' && <SaturnRings />}
+          </>
+        );
+
+        return <group key={id}>{groupContent}</group>;
+      })}
 
       <OrbitControls
         enablePan={true}
@@ -231,7 +342,7 @@ export function SolarSystemCanvas() {
       </div>
 
       <div className="absolute bottom-3 right-4 text-[10px] text-white/50 font-mono">
-        Drag to orbit • Scroll to zoom • Bodies are visually exaggerated for visibility
+        Drag to orbit • Scroll to zoom • Realistic materials + starfield + Sun lighting • Sizes exaggerated for visibility
       </div>
     </div>
   );
