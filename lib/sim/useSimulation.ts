@@ -20,46 +20,55 @@ type WorkerMessage =
   | { type: 'snapshot'; jd: number; bodies: Array<{ id: string; pos: Vec3 }> }
   | { type: string; [key: string]: unknown };
 
+// Module-level singleton so multiple hook calls share one worker (avoids duplicate workers)
+let sharedWorker: Worker | null = null;
+let workerUserCount = 0;
+
 export function useSimulation() {
   const store = useSimulationStore();
-  const workerRef = useRef<Worker | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number>(0);
 
-  // Create worker once
+  // Create or attach to shared worker (singleton pattern for multiple consumers)
   useEffect(() => {
-    const worker = new Worker(
-      new URL('../workers/sim.worker.ts', import.meta.url)
-    );
-    workerRef.current = worker;
+    if (!sharedWorker) {
+      sharedWorker = new Worker(
+        new URL('../workers/sim.worker.ts', import.meta.url)
+      );
 
-    worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
-      const msg = event.data as WorkerMessage;
-      if (msg && msg.type === 'snapshot') {
-        const snap = msg as { jd: number; bodies: Array<{ id: string; pos: Vec3 }> };
-        store.updateFromSnapshot({
-          jd: snap.jd,
-          bodies: snap.bodies,
-        });
-      }
-    };
+      sharedWorker.onmessage = (event: MessageEvent<WorkerMessage>) => {
+        const msg = event.data as WorkerMessage;
+        if (msg && msg.type === 'snapshot') {
+          const snap = msg as { jd: number; bodies: Array<{ id: string; pos: Vec3 }> };
+          useSimulationStore.getState().updateFromSnapshot({
+            jd: snap.jd,
+            bodies: snap.bodies,
+          });
+        }
+      };
 
-    // Kick off initialization
-    worker.postMessage({ type: 'init' });
+      sharedWorker.postMessage({ type: 'init' });
+    }
+
+    workerUserCount += 1;
 
     return () => {
-      worker.terminate();
-      workerRef.current = null;
+      workerUserCount -= 1;
+      if (workerUserCount <= 0 && sharedWorker) {
+        sharedWorker.terminate();
+        sharedWorker = null;
+        workerUserCount = 0;
+      }
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [store]);
+  }, []);  // empty deps: setup once per component tree mount for the hook users
 
   // Drive loop - defined early to avoid temporal dead zone issues with effects
   // Use a ref to hold the current drive function so we can recurse without TDZ / lint issues
   const driveLoopRef = useRef<() => void>(() => {});
 
   const driveLoop = useCallback(() => {
-    const worker = workerRef.current;
+    const worker = sharedWorker;
     if (!worker || !store.isPlaying) {
       rafRef.current = null;
       return;
@@ -103,7 +112,7 @@ export function useSimulation() {
   // Public API
   const setJd = useCallback(
     (jd: number) => {
-      const worker = workerRef.current;
+      const worker = sharedWorker;
       if (worker) {
         worker.postMessage({ type: 'setJd', jd });
       } else {
@@ -125,7 +134,7 @@ export function useSimulation() {
   );
 
   const reset = useCallback(() => {
-    const worker = workerRef.current;
+    const worker = sharedWorker;
     if (worker) {
       worker.postMessage({ type: 'reset' });
     }

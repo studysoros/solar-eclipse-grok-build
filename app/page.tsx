@@ -1,6 +1,7 @@
 'use client';
 
 import { SolarSystemCanvas } from '@/features/solar-system-viz/components/SolarSystemCanvas';
+import { EclipsePredictionTable } from '@/features/eclipse-predictor/components/EclipsePredictionTable';
 
 export default function SolarEclipseSimulator() {
   return (
@@ -57,6 +58,8 @@ export default function SolarEclipseSimulator() {
             </div>
           </div>
         </div>
+
+        <EclipsePredictionTable />
       </main>
 
       <footer className="border-t py-4 text-center text-xs text-muted-foreground">
